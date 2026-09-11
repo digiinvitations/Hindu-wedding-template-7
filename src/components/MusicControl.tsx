@@ -47,6 +47,7 @@ export function MusicControl({ musicUrl, shouldPlay = false }: MusicControlProps
   }, []);
 
   useEffect(() => {
+    if (!musicUrl) return;
     audioRef.current = new Audio(musicUrl);
     audioRef.current.loop = true;
 
@@ -59,6 +60,7 @@ export function MusicControl({ musicUrl, shouldPlay = false }: MusicControlProps
   }, [musicUrl]);
 
   useEffect(() => {
+    if (!musicUrl) return;
     if (shouldPlay && !hasStartedAuto && audioRef.current) {
       audioRef.current.play().then(() => {
         setIsPlaying(true);
@@ -80,7 +82,7 @@ export function MusicControl({ musicUrl, shouldPlay = false }: MusicControlProps
     }
   };
 
-  if (!isVisible) return null;
+  if (!musicUrl || !isVisible) return null;
 
   return (
     <button

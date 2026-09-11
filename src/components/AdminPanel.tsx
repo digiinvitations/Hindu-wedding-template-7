@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { getWeddingData, saveWeddingData } from "../services/db";
 import { WeddingData } from "../types";
-import { Save, Image as ImageIcon, ArrowLeft } from "lucide-react";
+import { Save, Image as ImageIcon, ArrowLeft, Download, Upload } from "lucide-react";
 
 export function AdminPanel() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const currentTemplateId = searchParams.get("template") || "main";
+  const currentTemplateId = searchParams.get("template") || "main 333";
   
   const [data, setData] = useState<WeddingData | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,6 +101,38 @@ export function AdminPanel() {
     }
   };
 
+  
+  const handleExport = () => {
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "wedding-config.json";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        setData(parsed);
+        alert("Data imported successfully! Make sure to click Save Changes to persist it.");
+      } catch (err) {
+        alert("Failed to parse JSON file.");
+      }
+    };
+    reader.readAsText(file);
+    // Reset input value so the same file can be selected again
+    e.target.value = '';
+  };
+
   return (
     <div className="min-h-screen bg-blush-main p-4 md:p-8 font-serif text-text-body">
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-sm p-6 md:p-10 border border-pink-border">
@@ -122,14 +154,32 @@ export function AdminPanel() {
                 className="bg-white border border-pink-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-pink-accent focus:ring-1 focus:ring-pink-accent w-64"
               />
             </div>
-            <button 
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 bg-burgundy text-white px-6 py-2 h-[38px] mt-[20px] rounded-md hover:bg-wine-dark transition-colors disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
+            <div className="flex items-center gap-2 mt-[20px]">
+              <button 
+                onClick={handleExport}
+                className="flex items-center gap-2 bg-blush-light text-wine-dark border border-pink-border px-4 py-2 h-[38px] rounded-md hover:bg-pink-border/50 transition-colors"
+                title="Export Data"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+              <label 
+                className="flex items-center gap-2 bg-blush-light text-wine-dark border border-pink-border px-4 py-2 h-[38px] rounded-md hover:bg-pink-border/50 transition-colors cursor-pointer"
+                title="Import Data"
+              >
+                <Upload className="w-4 h-4" />
+                Import
+                <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+              </label>
+              <button 
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2 bg-burgundy text-white px-6 py-2 h-[38px] rounded-md hover:bg-wine-dark transition-colors disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
           </div>
         </div>
 

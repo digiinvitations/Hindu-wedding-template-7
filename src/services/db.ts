@@ -3,9 +3,9 @@ import { db } from "../firebase";
 import { WeddingData } from "../types";
 import { weddingData as defaultData } from "../data";
 
-const DATA_DOC_ID = "main";
+const DATA_DOC_ID = "main 333";
 
-export async function getWeddingData(templateId: string = "main"): Promise<WeddingData> {
+export async function getWeddingData(templateId: string = "main 333"): Promise<WeddingData> {
   try {
     const docRef = doc(db, "weddingConfig", templateId);
     const docSnap = await getDoc(docRef);
@@ -17,10 +17,19 @@ export async function getWeddingData(templateId: string = "main"): Promise<Weddi
       if (data.events && data.events.length > 0 && data.events[0].hashtag === undefined) {
         data.events = defaultData.events;
       }
+      
+      // Patch out expired Pixabay hotlinks that cause "no supported sources" errors
+      if (data.heroVideoUrl && data.heroVideoUrl.includes("pixabay")) {
+        data.heroVideoUrl = "";
+      }
+      if (data.musicUrl && data.musicUrl.includes("pixabay")) {
+        data.musicUrl = "";
+      }
+
       return data;
     } else {
       // Initialize with default data if none exists and it's the main template
-      if (templateId === "main") {
+      if (templateId === "main 333") {
         await setDoc(docRef, defaultData);
       }
       return defaultData;

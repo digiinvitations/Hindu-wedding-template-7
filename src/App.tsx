@@ -20,7 +20,7 @@ import { EnvironmentEffects } from './components/EnvironmentEffects';
 
 function PublicView() {
   const [searchParams] = useSearchParams();
-  const templateId = searchParams.get('template') || 'main';
+  const templateId = searchParams.get('template') || 'main 333';
 
   const [data, setData] = useState<WeddingData | null>(null);
   const [isPreloading, setIsPreloading] = useState(true);
@@ -129,6 +129,10 @@ function PublicView() {
             muted
             preload="auto"
             onLoadedData={() => setIsVideoPlaying(true)}
+            onError={() => {
+              console.error("Failed to load opening video.");
+              setViewState('main');
+            }}
             onTimeUpdate={(e) => {
               if (e.currentTarget.currentTime > 0.1) {
                 setIsVideoPlaying(true);

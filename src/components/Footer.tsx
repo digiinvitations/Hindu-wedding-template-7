@@ -10,7 +10,7 @@ interface FooterProps {
 export function Footer({ data }: FooterProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const templateId = searchParams.get('template') || 'main';
+  const templateId = searchParams.get('template') || 'main 333';
   
   const [showPrompt, setShowPrompt] = useState(false);
   const [password, setPassword] = useState("");

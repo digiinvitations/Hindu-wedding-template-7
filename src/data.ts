@@ -19,7 +19,7 @@ export const weddingData: WeddingData = {
   weddingDayFormatted: "Wednesday",
   openingThumbnailUrl: "https://i.ibb.co/QFc6pvCg/file-0000000069488211b334f24889ba09e4.png",
   openingVideoUrl: "https://www.image2url.com/r2/default/videos/1788010850590-27bb3d4c-eb70-4e57-8299-6bca19925158.mp4",
-  heroVideoUrl: "https://cdn.pixabay.com/video/2021/08/18/85489-589366115_large.mp4",
+  heroVideoUrl: "",
   ogImageUrl: "https://i.ibb.co/whJhPT35/file-000000001e048211bb05770afd02bdae.png",
   heroMessage: "We are honored to welcome you to the\nWedding ceremony of",
   invitationMessage: "We are honored to welcome you to the\nWedding ceremony of Veer & Zara as they\nbegin their journey together in faith and\nlove,\nwe thank you for being part of this blessed\noccasion",
@@ -107,6 +107,6 @@ export const weddingData: WeddingData = {
     "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1606800052052-a08af7148866?q=80&w=2070&auto=format&fit=crop"
   ],
-  musicUrl: "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=romantic-piano-112199.mp3", // Placeholder romantic royalty-free music
+  musicUrl: "", // Blanking out Pixabay URL since they throw 403 Forbidden
   closingMessage: "We can't wait to celebrate\nwith you!"
 };
