@@ -2,9 +2,14 @@ import React, { useState } from "react";
 import { motion } from "motion/react";
 import { HeartDivider } from "./HeartDivider";
 import { Mail } from "lucide-react";
-import { submitRSVP, getRSVPs } from "../services/db";
+import { submitRSVP, getRSVPs, getDefaultTemplateId } from "../services/db";
 
-export function RSVP() {
+interface RSVPProps {
+  templateId?: string;
+}
+
+export function RSVP({ templateId }: RSVPProps) {
+  const effectiveTemplateId = (templateId && templateId.trim()) ? templateId.trim() : getDefaultTemplateId();
   const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -19,7 +24,7 @@ export function RSVP() {
       setIsAuthenticated(true);
       setErrorMsg("");
       setLoadingRsvps(true);
-      const data = await getRSVPs();
+      const data = await getRSVPs(effectiveTemplateId);
       setRsvps(data);
       setLoadingRsvps(false);
     } else {
@@ -40,7 +45,7 @@ export function RSVP() {
     };
 
     try {
-      await submitRSVP(rsvpData);
+      await submitRSVP(rsvpData, effectiveTemplateId);
       setStatus("success");
     } catch (error) {
       console.error("Error submitting RSVP:", error);
@@ -179,7 +184,10 @@ export function RSVP() {
             ) : (
               <div className="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-2">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-serif font-bold text-wine-dark">Guest Responses</h3>
+                  <div>
+                    <h3 className="font-serif font-bold text-wine-dark">Guest Responses</h3>
+                    <p className="text-[10px] text-wine-dark/60 font-sans">Section: {effectiveTemplateId}</p>
+                  </div>
                   <span className="text-xs font-semibold bg-blush-light text-wine-dark px-2 py-1 rounded-full">
                     Total: {rsvps.length}
                   </span>

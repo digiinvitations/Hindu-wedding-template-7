@@ -4,7 +4,7 @@ import React from 'react';
 const generateArray = (length: number) => Array.from({ length });
 
 // Petal Component
-const Petal = ({ index }: { index: number }) => {
+const Petal: React.FC<{ index: number }> = ({ index }) => {
   // Very slow fall speed: 25s - 45s
   const durationFall = Math.random() * 20 + 25; 
   const durationSway = Math.random() * 4 + 4; // 4s - 8s

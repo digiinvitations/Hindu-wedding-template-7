@@ -1,7 +1,8 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Heart, Instagram, Settings, X, KeyRound } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { WeddingData } from "../types";
+import { getDefaultTemplateId } from "../services/db";
 
 interface FooterProps {
   data: WeddingData;
@@ -10,7 +11,7 @@ interface FooterProps {
 export function Footer({ data }: FooterProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const templateId = searchParams.get('template') || 'main 333';
+  const templateId = searchParams.get('template') || getDefaultTemplateId();
   
   const [showPrompt, setShowPrompt] = useState(false);
   const [password, setPassword] = useState("");

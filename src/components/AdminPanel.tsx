@@ -1,36 +1,72 @@
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
-import { getWeddingData, saveWeddingData } from "../services/db";
-import { WeddingData } from "../types";
-import { Save, Image as ImageIcon, ArrowLeft, Download, Upload } from "lucide-react";
+import { 
+  getWeddingData, 
+  saveWeddingData, 
+  getDefaultTemplateId, 
+  getAllTemplateIds, 
+  createNewRemixSection, 
+  PARENT_TEMPLATE_ID,
+  isOfficialParentWebsite,
+  getRemixAutoTemplateId
+} from "../services/db";
+import { WeddingData, TimelineItem } from "../types";
+import { 
+  Save, 
+  Image as ImageIcon, 
+  ArrowLeft, 
+  Download, 
+  Upload, 
+  Plus, 
+  Layers, 
+  ShieldCheck, 
+  Sparkles,
+  Copy,
+  Trash2,
+  Lock
+} from "lucide-react";
 
 export function AdminPanel() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const currentTemplateId = searchParams.get("template") || "main 333";
+  const isOfficial = isOfficialParentWebsite();
+  const currentTemplateId = searchParams.get("template") || getDefaultTemplateId();
   
   const [data, setData] = useState<WeddingData | null>(null);
   const [saving, setSaving] = useState(false);
   const [templateId, setTemplateId] = useState(currentTemplateId);
+  const [templateList, setTemplateList] = useState<string[]>([]);
+  const [isCreatingRemix, setIsCreatingRemix] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       const dbData = await getWeddingData(currentTemplateId);
       setData(dbData);
-      setTemplateId(currentTemplateId);
+      
+      // On remix, ensure the save target is NEVER main 333
+      if (!isOfficial && (currentTemplateId === PARENT_TEMPLATE_ID || currentTemplateId === "main")) {
+        const autoRemixId = getRemixAutoTemplateId();
+        setTemplateId(autoRemixId);
+      } else {
+        setTemplateId(currentTemplateId);
+      }
+      
+      const allTemplates = await getAllTemplateIds();
+      setTemplateList(allTemplates);
     }
     loadData();
-  }, [currentTemplateId]);
+  }, [currentTemplateId, isOfficial]);
 
   if (!data) return <div className="p-8 font-serif">Loading Admin Panel...</div>;
 
   const handleChange = (path: string, value: any) => {
     setData((prev: any) => {
-      // Use structuredClone to safely deep copy the state so we don't mutate prev
+      // Use structuredClone/JSON to safely deep copy the state so we don't mutate prev
       const updated = JSON.parse(JSON.stringify(prev));
       const keys = path.split('.');
       let current = updated;
       for (let i = 0; i < keys.length - 1; i++) {
+        if (!current[keys[i]]) current[keys[i]] = {};
         current = current[keys[i]];
       }
       current[keys[keys.length - 1]] = value;
@@ -46,7 +82,7 @@ export function AdminPanel() {
     reader.onload = (event) => {
       const base64String = event.target?.result as string;
       setData((prev: any) => {
-        const newGallery = [...prev.gallery];
+        const newGallery = [...(prev.gallery || [])];
         newGallery[index] = base64String;
         return { ...prev, gallery: newGallery };
       });
@@ -66,32 +102,74 @@ export function AdminPanel() {
     reader.readAsDataURL(file);
   };
 
-  const addImage = () => {
+  const addGalleryImage = () => {
     setData((prev: any) => ({
       ...prev,
-      gallery: [...prev.gallery, ""]
+      gallery: [...(prev.gallery || []), ""]
     }));
   };
 
-  const removeImage = (index: number) => {
+  const removeGalleryImage = (index: number) => {
     setData((prev: any) => {
-      const newGallery = [...prev.gallery];
+      const newGallery = [...(prev.gallery || [])];
       newGallery.splice(index, 1);
       return { ...prev, gallery: newGallery };
     });
   };
 
+  const handleCreateNewRemix = async () => {
+    const defaultNewName = `new remix template ${Math.floor(100 + Math.random() * 900)}`;
+    const userChoice = window.prompt(
+      "Enter a unique name for this new isolated remix section and fields:",
+      defaultNewName
+    );
+    if (!userChoice || !userChoice.trim()) return;
+
+    setIsCreatingRemix(true);
+    try {
+      const newRemixId = await createNewRemixSection(userChoice.trim(), currentTemplateId);
+      const allTemplates = await getAllTemplateIds();
+      setTemplateList(allTemplates);
+      alert(`New isolated remix section "${newRemixId}" created successfully! Switching to it now.`);
+      navigate(`/admin?template=${encodeURIComponent(newRemixId)}`);
+    } catch (err: any) {
+      alert("Failed to create new remix section: " + (err.message || "Unknown error"));
+    } finally {
+      setIsCreatingRemix(false);
+    }
+  };
+
+  const handleSwitchTemplate = (newSelectedId: string) => {
+    if (newSelectedId && newSelectedId !== currentTemplateId) {
+      navigate(`/admin?template=${encodeURIComponent(newSelectedId)}`);
+    }
+  };
+
   const handleSave = async () => {
-    if (!templateId.trim()) {
+    let trimmed = templateId.trim();
+    if (!trimmed) {
       alert("Please provide a valid template name");
       return;
     }
+
+    // STRICT FIREWALL: On any remix website, NEVER allow saving into main 333 or main
+    if (!isOfficial && (trimmed === PARENT_TEMPLATE_ID || trimmed === "main")) {
+      const autoRemix = getRemixAutoTemplateId();
+      alert(
+        `Action Guard: The Official Parent Website ("${PARENT_TEMPLATE_ID}") is protected and cannot be modified from a remix.\n\nYour changes are being saved to your dedicated remix section ("${autoRemix}").`
+      );
+      trimmed = autoRemix;
+      setTemplateId(autoRemix);
+    }
+
     setSaving(true);
     try {
-      await saveWeddingData(templateId.trim(), data);
-      alert("Settings saved successfully!");
-      if (templateId.trim() !== currentTemplateId) {
-        navigate(`/admin?template=${encodeURIComponent(templateId.trim())}`);
+      const savedDocId = await saveWeddingData(trimmed, data);
+      const allTemplates = await getAllTemplateIds();
+      setTemplateList(allTemplates);
+      alert(`Settings saved successfully into section "${savedDocId}"!`);
+      if (savedDocId !== currentTemplateId) {
+        navigate(`/admin?template=${encodeURIComponent(savedDocId)}`);
       }
     } catch (error: any) {
       console.error(error);
@@ -101,14 +179,13 @@ export function AdminPanel() {
     }
   };
 
-  
   const handleExport = () => {
     const jsonString = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "wedding-config.json";
+    link.download = `${templateId || "wedding"}-config.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -129,56 +206,127 @@ export function AdminPanel() {
       }
     };
     reader.readAsText(file);
-    // Reset input value so the same file can be selected again
     e.target.value = '';
   };
 
   return (
     <div className="min-h-screen bg-blush-main p-4 md:p-8 font-serif text-text-body">
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-sm p-6 md:p-10 border border-pink-border">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 border-b border-pink-border pb-4 gap-4">
+        
+        {/* Top Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 border-b border-pink-border pb-4 gap-4">
           <div className="flex items-center gap-4">
-            <Link to={`/?template=${encodeURIComponent(currentTemplateId)}`} className="flex items-center gap-2 text-wine-dark hover:text-burgundy bg-blush-light px-3 py-1.5 rounded-full border border-pink-border/50 transition-colors text-sm font-semibold">
+            <Link 
+              to={`/?template=${encodeURIComponent(currentTemplateId)}`} 
+              className="flex items-center gap-2 text-wine-dark hover:text-burgundy bg-blush-light px-3 py-1.5 rounded-full border border-pink-border/50 transition-colors text-sm font-semibold"
+            >
               <ArrowLeft className="w-4 h-4" /> Go Back
             </Link>
             <h1 className="text-3xl font-script text-wine-dark">Admin Panel</h1>
           </div>
-          <div className="flex items-center gap-4 flex-wrap justify-end">
-            <div className="flex flex-col items-start">
-              <label className="text-xs font-semibold uppercase tracking-widest opacity-70 mb-1">Save as Template Name</label>
-              <input 
-                type="text" 
-                value={templateId} 
-                onChange={(e) => setTemplateId(e.target.value)}
-                placeholder="e.g., new remix template 001"
-                className="bg-white border border-pink-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-pink-accent focus:ring-1 focus:ring-pink-accent w-64"
-              />
+          
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <button 
+              onClick={handleExport}
+              className="flex items-center gap-2 bg-blush-light text-wine-dark border border-pink-border px-3.5 py-2 h-[38px] rounded-md hover:bg-pink-border/50 transition-colors text-sm"
+              title="Export Data"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+            <label 
+              className="flex items-center gap-2 bg-blush-light text-wine-dark border border-pink-border px-3.5 py-2 h-[38px] rounded-md hover:bg-pink-border/50 transition-colors cursor-pointer text-sm"
+              title="Import Data"
+            >
+              <Upload className="w-4 h-4" />
+              Import
+              <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+            </label>
+            <button 
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 bg-burgundy text-white px-5 py-2 h-[38px] rounded-md hover:bg-wine-dark transition-colors disabled:opacity-50 text-sm font-semibold shadow-sm"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
+
+        {/* Remix & Data Partition Isolation Manager */}
+        <div className="mb-8 p-5 rounded-xl border border-pink-border/80 bg-gradient-to-r from-pink-50/50 via-blush-light to-amber-50/30">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-pink-border/50">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Layers className="w-5 h-5 text-burgundy" />
+                <h2 className="text-base font-bold text-wine-dark uppercase tracking-wider">
+                  Remix &amp; Data Partition Manager
+                </h2>
+                {isOfficial ? (
+                  <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-sans font-semibold flex items-center gap-1 border border-emerald-300">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Official Parent ({PARENT_TEMPLATE_ID})
+                  </span>
+                ) : (
+                  <span className="bg-purple-100 text-purple-800 text-xs px-2.5 py-0.5 rounded-full font-sans font-semibold flex items-center gap-1 border border-purple-300">
+                    <Sparkles className="w-3.5 h-3.5" /> Isolated Remix Section
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-wine-dark/70 font-sans">
+                {isOfficial 
+                  ? "You are on the Official Parent Website (Vijay Kumar & Vashnavi). Edits made here update the official parent invitation."
+                  : "Strict Isolation Active: You are on a Remix. All updates, thumbnails, videos, and texts are saved exclusively into this remix section in Firebase Firestore. The Official Parent Website ('main 333') is permanently protected."}
+              </p>
             </div>
-            <div className="flex items-center gap-2 mt-[20px]">
-              <button 
-                onClick={handleExport}
-                className="flex items-center gap-2 bg-blush-light text-wine-dark border border-pink-border px-4 py-2 h-[38px] rounded-md hover:bg-pink-border/50 transition-colors"
-                title="Export Data"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
-              <label 
-                className="flex items-center gap-2 bg-blush-light text-wine-dark border border-pink-border px-4 py-2 h-[38px] rounded-md hover:bg-pink-border/50 transition-colors cursor-pointer"
-                title="Import Data"
-              >
-                <Upload className="w-4 h-4" />
-                Import
-                <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+
+            <button
+              onClick={handleCreateNewRemix}
+              disabled={isCreatingRemix}
+              className="flex items-center gap-1.5 bg-burgundy text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-wine-dark transition-colors shadow-sm disabled:opacity-50 shrink-0 font-sans"
+            >
+              <Plus className="w-4 h-4" />
+              {isCreatingRemix ? "Creating..." : "Create New Remix Section"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 font-sans text-sm">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-wine-dark/80 block mb-1">
+                Switch Between Existing Sections / Remixes:
               </label>
-              <button 
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 bg-burgundy text-white px-6 py-2 h-[38px] rounded-md hover:bg-wine-dark transition-colors disabled:opacity-50"
+              <select
+                value={currentTemplateId}
+                onChange={(e) => handleSwitchTemplate(e.target.value)}
+                className="w-full bg-white border border-pink-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-pink-accent"
               >
-                <Save className="w-4 h-4" />
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
+                {templateList.map((id) => (
+                  <option key={id} value={id}>
+                    {id === PARENT_TEMPLATE_ID 
+                      ? (isOfficial ? `⭐ ${id} (Official Parent Website)` : `🔒 ${id} (Official Parent - Protected)`) 
+                      : `📂 ${id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-wine-dark/80 block mb-1">
+                Save Target Template / Section Name:
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={templateId}
+                  onChange={(e) => setTemplateId(e.target.value)}
+                  placeholder="e.g., new remix template 001"
+                  className="w-full bg-white border border-pink-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-pink-accent"
+                />
+              </div>
+              {!isOfficial && (
+                <p className="text-[11px] text-purple-700 mt-1">
+                  Saved automatically into your separate remix partition in Firestore.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -205,9 +353,9 @@ export function AdminPanel() {
             </div>
           </section>
 
-          {/* Event Details */}
+          {/* Event Date & Time */}
           <section>
-             <h2 className="text-xl font-bold text-wine-dark mb-4">Event Date & Time</h2>
+             <h2 className="text-xl font-bold text-wine-dark mb-4">Event Date &amp; Time</h2>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Target Date (Countdown ISO)" value={data.weddingDate} onChange={(v) => handleChange("weddingDate", v)} type="datetime-local" />
                 <Input label="Formatted Date" value={data.weddingDateFormatted} onChange={(v) => handleChange("weddingDateFormatted", v)} />
@@ -218,7 +366,7 @@ export function AdminPanel() {
 
           {/* Messages */}
           <section>
-             <h2 className="text-xl font-bold text-wine-dark mb-4">Messages & Text</h2>
+             <h2 className="text-xl font-bold text-wine-dark mb-4">Messages &amp; Text</h2>
              <div className="space-y-4">
                <TextArea label="Hero Message" value={data.heroMessage} onChange={(v) => handleChange("heroMessage", v)} />
                <TextArea label="Invitation Message" value={data.invitationMessage} onChange={(v) => handleChange("invitationMessage", v)} />
@@ -228,7 +376,7 @@ export function AdminPanel() {
              </div>
           </section>
 
-          {/* Media Settings */}
+          {/* Events */}
           <section>
             <h2 className="text-xl font-bold text-wine-dark mb-4">Events</h2>
             <div className="space-y-4">
@@ -340,6 +488,105 @@ export function AdminPanel() {
                 handleChange("events", [...data.events, newEvent]);
               }} className="text-wine-dark hover:bg-blush-light px-4 py-2 rounded-md border border-pink-border w-full text-center">
                 + Add Event
+              </button>
+            </div>
+          </section>
+
+          {/* Timeline Schedule Section */}
+          <section>
+            <h2 className="text-xl font-bold text-wine-dark mb-4">Timeline / Schedule Section</h2>
+            <div className="space-y-4">
+              {(data.timeline || []).map((item, idx) => (
+                <div key={item.id || idx} className="bg-blush-light p-4 rounded-lg border border-pink-border/50 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-wine-dark">Schedule Item {idx + 1}</h3>
+                    <button 
+                      onClick={() => {
+                        const newTimeline = [...(data.timeline || [])];
+                        newTimeline.splice(idx, 1);
+                        handleChange("timeline", newTimeline);
+                      }} 
+                      className="text-red-500 hover:bg-red-50 px-3 py-1 rounded-md text-sm"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <Input label="Title" value={item.title || ""} onChange={(v) => handleChange(`timeline.${idx}.title`, v)} />
+                    <Input label="Date" value={item.date || ""} onChange={(v) => handleChange(`timeline.${idx}.date`, v)} placeholder="e.g. Nov 24, 2026" />
+                    <Input label="Time" value={item.time || ""} onChange={(v) => handleChange(`timeline.${idx}.time`, v)} placeholder="e.g. 10:00 AM" />
+                    <div className="md:col-span-3">
+                      <Input label="Description" value={item.description || ""} onChange={(v) => handleChange(`timeline.${idx}.description`, v)} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button 
+                onClick={() => {
+                  const newItem: TimelineItem = {
+                    id: Date.now().toString(),
+                    title: "New Ceremony",
+                    date: "Nov 25, 2026",
+                    time: "11:00 AM",
+                    description: "Ceremony details"
+                  };
+                  handleChange("timeline", [...(data.timeline || []), newItem]);
+                }} 
+                className="text-wine-dark hover:bg-blush-light px-4 py-2 rounded-md border border-pink-border w-full text-center"
+              >
+                + Add Timeline Item
+              </button>
+            </div>
+          </section>
+
+          {/* Photo Gallery Section */}
+          <section>
+            <h2 className="text-xl font-bold text-wine-dark mb-4">Photo Gallery Section</h2>
+            <div className="bg-blush-light p-4 rounded-lg border border-pink-border/50 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {(data.gallery || []).map((imgUrl, idx) => (
+                  <div key={idx} className="bg-white p-3 rounded-lg border border-pink-border/60 flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-semibold text-wine-dark">Photo {idx + 1}</span>
+                      <button 
+                        onClick={() => removeGalleryImage(idx)} 
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {imgUrl ? (
+                      <img src={imgUrl} alt={`Gallery ${idx}`} className="w-full h-32 object-cover rounded-md" />
+                    ) : (
+                      <div className="w-full h-32 bg-gray-100 rounded-md flex items-center justify-center text-gray-400 text-xs">
+                        No image uploaded
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, idx)}
+                      className="w-full text-xs file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-burgundy file:text-white hover:file:bg-wine-dark cursor-pointer"
+                    />
+                    <input 
+                      type="text" 
+                      value={imgUrl || ""} 
+                      onChange={(e) => {
+                        const newGallery = [...(data.gallery || [])];
+                        newGallery[idx] = e.target.value;
+                        handleChange("gallery", newGallery);
+                      }} 
+                      placeholder="Or paste image URL" 
+                      className="w-full bg-white border border-pink-border rounded-md px-2 py-1 text-xs focus:outline-none focus:border-pink-accent" 
+                    />
+                  </div>
+                ))}
+              </div>
+              <button 
+                onClick={addGalleryImage}
+                className="text-wine-dark hover:bg-white px-4 py-2 rounded-md border border-pink-border w-full text-center text-sm font-semibold transition-colors"
+              >
+                + Add Photo to Gallery
               </button>
             </div>
           </section>

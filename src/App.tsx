@@ -11,7 +11,7 @@ import { Venue } from './components/Venue';
 import { RSVP } from './components/RSVP';
 import { ClosingMessage } from './components/ClosingMessage';
 import { Footer } from './components/Footer';
-import { getWeddingData } from './services/db';
+import { getWeddingData, getDefaultTemplateId } from './services/db';
 import { WeddingData } from './types';
 import { AdminPanel } from './components/AdminPanel';
 import { Preloader } from './components/Preloader';
@@ -20,7 +20,7 @@ import { EnvironmentEffects } from './components/EnvironmentEffects';
 
 function PublicView() {
   const [searchParams] = useSearchParams();
-  const templateId = searchParams.get('template') || 'main 333';
+  const templateId = searchParams.get('template') || getDefaultTemplateId();
 
   const [data, setData] = useState<WeddingData | null>(null);
   const [isPreloading, setIsPreloading] = useState(true);
@@ -112,7 +112,7 @@ function PublicView() {
         <Reveal delay={0.1}><Events events={data.events} globalLogo={data?.hero?.logoUrl} /></Reveal>
         <Reveal delay={0.1}><Timeline events={data.events} /></Reveal>
         <Reveal delay={0.1}><Venue venue={data.venue} groom={data.groom} bride={data.bride} weddingDate={data.weddingDate} /></Reveal>
-        <Reveal delay={0.1}><RSVP /></Reveal>
+        <Reveal delay={0.1}><RSVP templateId={templateId} /></Reveal>
         <Reveal delay={0.1}><ClosingMessage data={data} /></Reveal>
         <Reveal delay={0.1}><Footer data={data} /></Reveal>
       </main>
