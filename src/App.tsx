@@ -71,24 +71,36 @@ function PublicView() {
   };
 
   useEffect(() => {
-    if (data?.ogImageUrl) {
-      // Find or create og:image meta tag
-      let ogImageMeta = document.querySelector('meta[property="og:image"]');
-      if (!ogImageMeta) {
-        ogImageMeta = document.createElement('meta');
-        ogImageMeta.setAttribute('property', 'og:image');
-        document.head.appendChild(ogImageMeta);
+    if (data) {
+      const brideName = data.bride?.name?.trim() || "Bride";
+      const groomName = data.groom?.name?.trim() || "Groom";
+      const formattedTitle = `${brideName} & ${groomName} | Wedding Invitation`;
+      const descriptionText = `You are invited to the wedding of ${brideName} & ${groomName}.`;
+
+      // Set document title
+      document.title = formattedTitle;
+
+      const setMetaTag = (selector: string, attrName: string, attrVal: string, content: string) => {
+        let el = document.querySelector(selector);
+        if (!el) {
+          el = document.createElement('meta');
+          el.setAttribute(attrName, attrVal);
+          document.head.appendChild(el);
+        }
+        el.setAttribute('content', content);
+      };
+
+      // Description & Social Tags
+      setMetaTag('meta[name="description"]', 'name', 'description', descriptionText);
+      setMetaTag('meta[property="og:title"]', 'property', 'og:title', formattedTitle);
+      setMetaTag('meta[property="og:description"]', 'property', 'og:description', descriptionText);
+      setMetaTag('meta[name="twitter:title"]', 'name', 'twitter:title', formattedTitle);
+      setMetaTag('meta[name="twitter:description"]', 'name', 'twitter:description', descriptionText);
+
+      if (data.ogImageUrl) {
+        setMetaTag('meta[property="og:image"]', 'property', 'og:image', data.ogImageUrl);
+        setMetaTag('meta[name="twitter:image"]', 'name', 'twitter:image', data.ogImageUrl);
       }
-      ogImageMeta.setAttribute('content', data.ogImageUrl);
-      
-      // Twitter image
-      let twImageMeta = document.querySelector('meta[name="twitter:image"]');
-      if (!twImageMeta) {
-        twImageMeta = document.createElement('meta');
-        twImageMeta.setAttribute('name', 'twitter:image');
-        document.head.appendChild(twImageMeta);
-      }
-      twImageMeta.setAttribute('content', data.ogImageUrl);
     }
   }, [data]);
 
@@ -184,7 +196,7 @@ function PublicView() {
             src={thumbnailSrc} 
             alt="Opening" 
             // @ts-ignore
-            fetchpriority="high"
+            fetchPriority="high"
             loading="eager"
             decoding="async"
             className="absolute inset-0 w-full h-full object-contain" 

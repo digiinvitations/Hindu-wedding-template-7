@@ -78,7 +78,7 @@ export function Hero({ data, shouldPlayVideo = true, onVideoEnd }: HeroProps) {
           src={posterUrl}
           alt="Hero Poster"
           // @ts-ignore
-          fetchpriority="high"
+          fetchPriority="high"
           loading="eager"
           decoding="async"
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
@@ -145,23 +145,39 @@ export function Hero({ data, shouldPlayVideo = true, onVideoEnd }: HeroProps) {
             className="flex flex-col items-center justify-center w-full"
           >
             <h1 className="font-script text-5xl sm:text-6xl text-[#8F1736] drop-shadow-sm leading-none whitespace-nowrap">
-              {data.groom.name}
+              {data.bride.name}
             </h1>
-            <div className="font-serif text-[12px] text-[#5D4147] flex flex-col items-center gap-1 mt-2 mb-5 font-medium">
-              <p>{data.groom.parents}</p>
-              <p>{data.groom.education}</p>
-              <p>{data.groom.profession}</p>
+            <div className="font-serif flex flex-col items-center gap-1.5 mt-2.5 mb-5 text-center">
+              <p className="font-bold text-[14px] sm:text-[15px] text-[#78122B] tracking-wide leading-snug drop-shadow-2xs">
+                {data.bride.parents}
+              </p>
+              {data.bride.education && (
+                <p className="text-[12px] sm:text-[13px] text-[#5D4147]/90 font-medium italic">
+                  {data.bride.education}
+                </p>
+              )}
+              <p className="font-bold text-[13.5px] sm:text-[14.5px] text-[#8F1736] tracking-wide">
+                {data.bride.profession}
+              </p>
             </div>
             
             <span className="font-script text-3xl text-[#D995A5] my-1">&amp;</span>
             
             <h1 className="font-script text-5xl sm:text-6xl text-[#8F1736] drop-shadow-sm leading-none mt-3 whitespace-nowrap">
-              {data.bride.name}
+              {data.groom.name}
             </h1>
-            <div className="font-serif text-[12px] text-[#5D4147] flex flex-col items-center gap-1 mt-2 font-medium">
-              <p>{data.bride.parents}</p>
-              <p>{data.bride.education}</p>
-              <p>{data.bride.profession}</p>
+            <div className="font-serif flex flex-col items-center gap-1.5 mt-2.5 text-center">
+              <p className="font-bold text-[14px] sm:text-[15px] text-[#78122B] tracking-wide leading-snug drop-shadow-2xs">
+                {data.groom.parents}
+              </p>
+              {data.groom.education && (
+                <p className="text-[12px] sm:text-[13px] text-[#5D4147]/90 font-medium italic">
+                  {data.groom.education}
+                </p>
+              )}
+              <p className="font-bold text-[13.5px] sm:text-[14.5px] text-[#8F1736] tracking-wide">
+                {data.groom.profession}
+              </p>
             </div>
           </motion.div>
         </div>

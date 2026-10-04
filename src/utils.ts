@@ -6,6 +6,9 @@ export function generateIcsFile(weddingData: any) {
     return date.toISOString().replace(/-|:|\.\d+/g, "");
   };
 
+  const brideName = weddingData.bride?.name?.trim() || "Bride";
+  const groomName = weddingData.groom?.name?.trim() || "Groom";
+
   const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Wedding Invitation//EN
@@ -14,9 +17,9 @@ UID:${startDate.getTime()}@wedding.com
 DTSTAMP:${formatDate(new Date())}
 DTSTART:${formatDate(startDate)}
 DTEND:${formatDate(endDate)}
-SUMMARY:Wedding of ${weddingData.groom.name} & ${weddingData.bride.name}
+SUMMARY:Wedding of ${brideName} & ${groomName}
 LOCATION:${weddingData.venue.name}, ${weddingData.venue.addressLine1}
-DESCRIPTION:Join us to celebrate the wedding of ${weddingData.groom.name} & ${weddingData.bride.name}.
+DESCRIPTION:Join us to celebrate the wedding of ${brideName} & ${groomName}.
 END:VEVENT
 END:VCALENDAR`;
 

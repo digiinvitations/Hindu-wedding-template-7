@@ -337,18 +337,18 @@ export function AdminPanel() {
             <h2 className="text-xl font-bold text-wine-dark mb-4">Couple Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4 bg-blush-light p-4 rounded-lg border border-pink-border/50">
-                <h3 className="font-bold">Groom</h3>
-                <Input label="Name" value={data.groom.name} onChange={(v) => handleChange("groom.name", v)} />
-                <Input label="Parents" value={data.groom.parents} onChange={(v) => handleChange("groom.parents", v)} />
-                <Input label="Education" value={data.groom.education} onChange={(v) => handleChange("groom.education", v)} />
-                <Input label="Profession" value={data.groom.profession} onChange={(v) => handleChange("groom.profession", v)} />
-              </div>
-              <div className="space-y-4 bg-blush-light p-4 rounded-lg border border-pink-border/50">
                 <h3 className="font-bold">Bride</h3>
                 <Input label="Name" value={data.bride.name} onChange={(v) => handleChange("bride.name", v)} />
                 <Input label="Parents" value={data.bride.parents} onChange={(v) => handleChange("bride.parents", v)} />
                 <Input label="Education" value={data.bride.education} onChange={(v) => handleChange("bride.education", v)} />
                 <Input label="Profession" value={data.bride.profession} onChange={(v) => handleChange("bride.profession", v)} />
+              </div>
+              <div className="space-y-4 bg-blush-light p-4 rounded-lg border border-pink-border/50">
+                <h3 className="font-bold">Groom</h3>
+                <Input label="Name" value={data.groom.name} onChange={(v) => handleChange("groom.name", v)} />
+                <Input label="Parents" value={data.groom.parents} onChange={(v) => handleChange("groom.parents", v)} />
+                <Input label="Education" value={data.groom.education} onChange={(v) => handleChange("groom.education", v)} />
+                <Input label="Profession" value={data.groom.profession} onChange={(v) => handleChange("groom.profession", v)} />
               </div>
             </div>
           </section>
