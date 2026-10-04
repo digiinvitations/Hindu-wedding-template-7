@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useSearchParams } from 'react-router-dom';
 import { Hero } from './components/Hero';
 import { InvitationMessage } from './components/InvitationMessage';
@@ -28,12 +28,12 @@ function PublicView() {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isScratched, setIsScratched] = useState(false);
   const [isHeroEnded, setIsHeroEnded] = useState(false);
-  const openingVideoRef = React.useRef<HTMLVideoElement>(null);
+  const openingVideoRef = useRef<HTMLVideoElement>(null);
+  const videoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     async function loadData() {
       const dbData = await getWeddingData(templateId);
-      
       setData(dbData);
       if (!dbData.openingThumbnailUrl) {
         setViewState('main');
@@ -44,18 +44,24 @@ function PublicView() {
 
   const handleThumbnailClick = () => {
     if (viewState === 'opening-video') {
-      // If user clicks again while video is buffering/stuck, skip to main
+      // If user clicks again while video is buffering, skip straight to main
+      if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current);
       setViewState('main');
       return;
     }
 
     if (data?.openingVideoUrl) {
       setViewState('opening-video');
+      
+      // Safety timeout: if video fails to play/load within 4 seconds, don't trap the user
+      videoTimeoutRef.current = setTimeout(() => {
+        setViewState('main');
+      }, 4000);
+
       if (openingVideoRef.current) {
-        // We set volume to 1 here in case it was muted by default, but keeping muted is safer for autoplay.
-        // The play() promise can reject if the video is broken.
         openingVideoRef.current.play().catch((err) => {
-          console.error("Video playback failed", err);
+          console.warn("Opening video playback error, transitioning to main:", err);
+          if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current);
           setViewState('main');
         });
       }
@@ -75,7 +81,7 @@ function PublicView() {
       }
       ogImageMeta.setAttribute('content', data.ogImageUrl);
       
-      // Some platforms also use twitter:image
+      // Twitter image
       let twImageMeta = document.querySelector('meta[name="twitter:image"]');
       if (!twImageMeta) {
         twImageMeta = document.createElement('meta');
@@ -94,6 +100,8 @@ function PublicView() {
     return <Preloader data={data} onComplete={() => setIsPreloading(false)} />;
   }
 
+  const thumbnailSrc = data.openingThumbnailUrl;
+
   return (
     <div className={`w-full bg-blush-main relative mx-auto max-w-md shadow-2xl overflow-hidden sm:my-0 ${viewState !== 'main' ? 'h-[100svh]' : 'min-h-[100svh]'}`}>
       
@@ -103,9 +111,13 @@ function PublicView() {
       {/* Global Environment Animations (Petals, Birds, Butterflies) */}
       {viewState === 'main' && <EnvironmentEffects />}
 
-      {/* Main Content (Always rendered so Hero video preloads and starts seamlessly) */}
+      {/* Main Content (Hero video only plays when viewState === 'main' to prevent bandwidth contention) */}
       <main className="w-full min-h-[100svh] bg-blush-main relative overflow-hidden">
-        <Hero data={data} shouldPlayVideo={viewState === 'main' || !data.openingVideoUrl} onVideoEnd={() => setIsHeroEnded(true)} />
+        <Hero 
+          data={data} 
+          shouldPlayVideo={viewState === 'main'} 
+          onVideoEnd={() => setIsHeroEnded(true)} 
+        />
         <Reveal delay={0.1}><InvitationMessage message={data.invitationMessage} isHeroEnded={isHeroEnded} /></Reveal>
         <Reveal delay={0.1}><ScratchCardSection data={data} onReveal={() => setIsScratched(true)} /></Reveal>
         {isScratched && <Reveal delay={0.1}><Countdown targetDate={data.weddingDate} /></Reveal>}
@@ -117,43 +129,64 @@ function PublicView() {
         <Reveal delay={0.1}><Footer data={data} /></Reveal>
       </main>
 
-      {/* Opening Video Overlay (z-[9999]) */}
+      {/* Opening Video Overlay (z-[9999]) - Deferred loading, only active when triggered */}
       {data.openingVideoUrl && (
         <div 
-          className={`absolute inset-0 z-[9999] bg-blush-main flex items-center justify-center ${viewState === 'opening-video' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          className={`absolute inset-0 z-[9999] bg-blush-main flex items-center justify-center transition-opacity duration-500 ${
+            viewState === 'opening-video' ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
         >
           <video
             ref={openingVideoRef}
             src={data.openingVideoUrl}
             playsInline
             muted
-            preload="auto"
-            onLoadedData={() => setIsVideoPlaying(true)}
+            preload={viewState === 'opening-video' ? 'auto' : 'none'}
+            onLoadedData={() => {
+              if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current);
+              setIsVideoPlaying(true);
+            }}
             onError={() => {
-              console.error("Failed to load opening video.");
+              console.warn("Failed to load opening video.");
+              if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current);
               setViewState('main');
             }}
             onTimeUpdate={(e) => {
               if (e.currentTarget.currentTime > 0.1) {
+                if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current);
                 setIsVideoPlaying(true);
               }
             }}
-            onEnded={() => setViewState('main')}
-            onClick={() => setViewState('main')}
+            onEnded={() => {
+              if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current);
+              setViewState('main');
+            }}
+            onClick={() => {
+              if (videoTimeoutRef.current) clearTimeout(videoTimeoutRef.current);
+              setViewState('main');
+            }}
             className="w-full h-full object-contain cursor-pointer"
           />
         </div>
       )}
 
       {/* Thumbnail Overlay (z-[9999]) */}
-      {data.openingThumbnailUrl && (
+      {thumbnailSrc && (
         <div 
-          className={`absolute inset-0 z-[9999] bg-blush-main flex flex-col items-center justify-center cursor-pointer transition-opacity duration-700 ${viewState === 'thumbnail' || (viewState === 'opening-video' && !isVideoPlaying) ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          className={`absolute inset-0 z-[9999] bg-blush-main flex flex-col items-center justify-center cursor-pointer transition-opacity duration-700 ${
+            viewState === 'thumbnail' || (viewState === 'opening-video' && !isVideoPlaying) 
+              ? 'opacity-100' 
+              : 'opacity-0 pointer-events-none'
+          }`}
           onClick={handleThumbnailClick}
         >
           <img 
-            src={data.openingThumbnailUrl} 
+            src={thumbnailSrc} 
             alt="Opening" 
+            // @ts-ignore
+            fetchpriority="high"
+            loading="eager"
+            decoding="async"
             className="absolute inset-0 w-full h-full object-contain" 
           />
           
@@ -179,5 +212,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-
-

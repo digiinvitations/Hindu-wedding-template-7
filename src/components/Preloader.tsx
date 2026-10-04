@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Heart } from 'lucide-react';
 import { WeddingData } from '../types';
 
 interface PreloaderProps {
@@ -8,91 +7,135 @@ interface PreloaderProps {
   onComplete: () => void;
 }
 
+// Global cache to ensure assets are only preloaded once across remounts/navigation
+const globallyPreloadedUrls = new Set<string>();
+
 export function Preloader({ data, onComplete }: PreloaderProps) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
-    const loadAssets = async () => {
-      const assets: { type: 'image' | 'media'; url: string }[] = [];
 
-      // Collect all critical assets
-      if (data.openingThumbnailUrl) assets.push({ type: 'image', url: data.openingThumbnailUrl });
-      if (data.openingVideoUrl) assets.push({ type: 'media', url: data.openingVideoUrl });
-      if (data.heroVideoUrl) assets.push({ type: 'media', url: data.heroVideoUrl });
-      if (data.events) {
-        // Only safely try to access logo on hero if it exists in the new schema, but it's nested usually
-        // Using optional chaining just in case some legacy data has it.
-        const firstEventLogo = data.events.find(e => e.logoUrl)?.logoUrl;
-        if (firstEventLogo) assets.push({ type: 'image', url: firstEventLogo });
-        data.gallery.forEach(url => assets.push({ type: 'image', url }));
-      }
-      
-      if (data.events) {
-        data.events.forEach(e => {
-           if (e.videoUrl) assets.push({ type: 'media', url: e.videoUrl });
-           if (e.image) assets.push({ type: 'image', url: e.image });
-           if (e.backgroundUrl) assets.push({ type: 'image', url: e.backgroundUrl });
-           if (e.caricatureUrl) assets.push({ type: 'image', url: e.caricatureUrl });
-           if (e.circularImageUrl) assets.push({ type: 'image', url: e.circularImageUrl });
-           if (e.logoUrl) assets.push({ type: 'image', url: e.logoUrl });
-        });
-      }
+    // Collect all asset URLs across the invitation
+    const rawUrls: string[] = [];
 
-      // Deduplicate by URL
-      const uniqueAssets = Array.from(new Set(assets.map(a => a.url)))
-        .map(url => assets.find(a => a.url === url)!);
+    if (data.openingThumbnailUrl) rawUrls.push(data.openingThumbnailUrl);
+    if (data.ogImageUrl) rawUrls.push(data.ogImageUrl);
+    
+    // Hero fallback poster
+    rawUrls.push("https://images.unsplash.com/photo-1519225421980-715cb0215aed?q=80&w=2070&auto=format&fit=crop");
 
-      const total = uniqueAssets.length;
-      if (total === 0) {
-        onComplete();
-        return;
-      }
-
-      let loadedCount = 0;
-      const updateProgress = () => {
-        loadedCount++;
-        if (isMounted) {
-          setProgress(Math.round((loadedCount / total) * 100));
-        }
-      };
-
-      const promises = uniqueAssets.map(asset => {
-        return new Promise<void>((resolve) => {
-          if (asset.type === 'image') {
-            const img = new Image();
-            img.onload = () => { updateProgress(); resolve(); };
-            img.onerror = () => { updateProgress(); resolve(); };
-            img.src = asset.url;
-          } else {
-            // Fetch media to ensure it is fully downloaded and cached
-            fetch(asset.url, { cache: "force-cache" })
-              .then(res => res.blob())
-              .then(() => { updateProgress(); resolve(); })
-              .catch((err) => { 
-                console.warn("Preload fetch failed (likely CORS), skipping:", asset.url);
-                updateProgress(); 
-                resolve(); 
-              });
-          }
-        });
+    // Events assets (backgrounds, caricatures, circular images, logos)
+    if (data.events && Array.isArray(data.events)) {
+      data.events.forEach(e => {
+        if (e.backgroundUrl) rawUrls.push(e.backgroundUrl);
+        if (e.caricatureUrl) rawUrls.push(e.caricatureUrl);
+        if (e.circularImageUrl) rawUrls.push(e.circularImageUrl);
+        if (e.logoUrl) rawUrls.push(e.logoUrl);
+        if (e.image) rawUrls.push(e.image);
       });
+    }
 
-      // Timeout after 12 seconds max to avoid freezing on slow connections
-      const timeout = new Promise<void>(resolve => setTimeout(resolve, 12000));
+    // Hero global logo if present
+    const firstEventLogo = data.events?.find(e => e.logoUrl)?.logoUrl;
+    if (firstEventLogo) rawUrls.push(firstEventLogo);
 
-      await Promise.race([Promise.all(promises), timeout]);
+    // Gallery images
+    if (data.gallery && Array.isArray(data.gallery)) {
+      data.gallery.forEach(url => {
+        if (url) rawUrls.push(url);
+      });
+    }
 
+    // Deduplicate so every unique file is requested exactly once
+    const uniqueUrls = Array.from(new Set(rawUrls.filter(Boolean)));
+    const total = uniqueUrls.length;
+
+    if (total === 0) {
+      setProgress(100);
+      onComplete();
+      return;
+    }
+
+    // Check how many are already preloaded in memory
+    let loadedCount = uniqueUrls.filter(url => globallyPreloadedUrls.has(url)).length;
+    
+    // If all files were already preloaded in this session
+    if (loadedCount === total) {
+      setProgress(100);
+      const timer = setTimeout(() => {
+        if (isMounted) onComplete();
+      }, 250);
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+      };
+    }
+
+    const initialProgress = Math.round((loadedCount / total) * 100);
+    setProgress(initialProgress);
+
+    let isCompleted = false;
+
+    const handleSingleAssetComplete = (url: string) => {
+      globallyPreloadedUrls.add(url);
+      loadedCount++;
+      if (isMounted) {
+        const pct = Math.min(100, Math.round((loadedCount / total) * 100));
+        setProgress(pct);
+      }
+
+      if (loadedCount >= total && !isCompleted) {
+        isCompleted = true;
+        finishPreloader();
+      }
+    };
+
+    const finishPreloader = () => {
       if (isMounted) {
         setProgress(100);
         setTimeout(() => {
           if (isMounted) onComplete();
-        }, 800); // Brief pause at 100% so it looks complete
+        }, 300); // Brief pause at 100% so it feels smooth and complete
       }
     };
 
-    loadAssets();
-    return () => { isMounted = false; };
+    // Preload each unique image file once and decode it
+    uniqueUrls.forEach(url => {
+      if (globallyPreloadedUrls.has(url)) return;
+
+      const img = new Image();
+      // @ts-ignore
+      img.fetchPriority = "high";
+
+      const markDone = () => {
+        if (typeof img.decode === "function") {
+          img.decode()
+            .then(() => handleSingleAssetComplete(url))
+            .catch(() => handleSingleAssetComplete(url));
+        } else {
+          handleSingleAssetComplete(url);
+        }
+      };
+
+      img.onload = markDone;
+      img.onerror = () => handleSingleAssetComplete(url);
+      img.src = url;
+    });
+
+    // Failsafe timeout: never freeze the screen for more than 5 seconds if a network request hangs
+    const safetyTimeout = setTimeout(() => {
+      if (!isCompleted) {
+        isCompleted = true;
+        uniqueUrls.forEach(url => globallyPreloadedUrls.add(url));
+        finishPreloader();
+      }
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimeout);
+    };
   }, [data, onComplete]);
 
   return (
@@ -113,14 +156,14 @@ export function Preloader({ data, onComplete }: PreloaderProps) {
             className="h-full bg-[#d4af37] absolute top-0 left-0 rounded-full"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           />
           {/* Progress Arrow (🌸) following the tip */}
           <motion.div
             className="absolute top-1/2 -translate-y-1/2 text-[12px] drop-shadow-sm z-10"
             initial={{ left: "0%" }}
             animate={{ left: `calc(${progress}% - 6px)` }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
             🌸
           </motion.div>

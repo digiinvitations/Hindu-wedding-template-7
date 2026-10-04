@@ -2,7 +2,6 @@ import React from "react";
 import { motion } from "motion/react";
 import { HeartDivider } from "./HeartDivider";
 import { EventDetails } from "../types";
-import { Calendar, MapPin } from "lucide-react";
 import { FloatingLanterns } from "./FloatingLanterns";
 
 interface EventsProps {

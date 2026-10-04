@@ -11,54 +11,107 @@ interface HeroProps {
 
 export function Hero({ data, shouldPlayVideo = true, onVideoEnd }: HeroProps) {
   const [showText, setShowText] = useState(!data.heroVideoUrl);
-  const [isEnded, setIsEnded] = useState(!data.heroVideoUrl);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // High priority poster image for instant visibility
+  const posterUrl = data.ogImageUrl 
+    ? data.ogImageUrl
+    : "https://images.unsplash.com/photo-1519225421980-715cb0215aed?q=80&w=2070&auto=format&fit=crop";
+
   useEffect(() => {
-    if (shouldPlayVideo && videoRef.current) {
-      videoRef.current.play().catch(console.error);
+    let playTimer: NodeJS.Timeout;
+
+    if (shouldPlayVideo && videoRef.current && !videoError) {
+      // Start playing once allowed
+      const videoElement = videoRef.current;
+      videoElement.play().catch((err) => {
+        console.warn("Hero video autoplay restricted or pending interaction:", err);
+        // If autoplay is blocked or failed, don't hold back the invitation text
+        setShowText(true);
+      });
+
+      // Failsafe: if video is buffering slowly on mobile network, reveal text after 3s
+      playTimer = setTimeout(() => {
+        setShowText(true);
+      }, 3000);
+    } else if (!shouldPlayVideo && videoRef.current) {
+      videoRef.current.pause();
     }
-  }, [shouldPlayVideo]);
+
+    return () => {
+      clearTimeout(playTimer);
+    };
+  }, [shouldPlayVideo, videoError]);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       const { currentTime } = videoRef.current;
-      if (currentTime >= 2) {
+      if (currentTime >= 1.5) {
         if (!showText) setShowText(true);
       }
     }
   };
 
   const handleEnded = () => {
-    setIsEnded(true);
     setShowText(true);
     if (onVideoEnd) onVideoEnd();
   };
 
+  const handleVideoCanPlay = () => {
+    setIsVideoReady(true);
+  };
+
+  const handleVideoError = () => {
+    setVideoError(true);
+    setShowText(true);
+  };
+
   return (
     <section className="relative min-h-[100svh] w-full flex flex-col items-center justify-center overflow-hidden bg-blush-main">
-      {/* Background Video or Image */}
-      <div className="absolute inset-0 z-0 bg-blush-main">
-        {data.heroVideoUrl ? (
+      {/* Background Layer: Poster + Video with Graceful Fallback */}
+      <div className="absolute inset-0 z-0 bg-blush-main overflow-hidden">
+        
+        {/* Instant Poster Image (Loads with High Fetch Priority, Never Blank) */}
+        <img
+          src={posterUrl}
+          alt="Hero Poster"
+          // @ts-ignore
+          fetchpriority="high"
+          loading="eager"
+          decoding="async"
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+            isVideoReady && !videoError ? "opacity-40" : "opacity-90"
+          }`}
+        />
+
+        {/* Video Element: Lazy Preloaded, Deferred until viewState is ready */}
+        {data.heroVideoUrl && !videoError && (
           <video
             ref={videoRef}
-            src={data.heroVideoUrl}
-            muted
             playsInline
-            preload="auto"
+            muted
+            poster={posterUrl}
+            preload={shouldPlayVideo ? "metadata" : "none"}
+            onCanPlay={handleVideoCanPlay}
             onTimeUpdate={handleTimeUpdate}
             onEnded={handleEnded}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div 
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-80"
-            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1519225421980-715cb0215aed?q=80&w=2070&auto=format&fit=crop')" }}
-          />
+            onError={handleVideoError}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+              isVideoReady ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <source src={data.heroVideoUrl} type="video/mp4" />
+          </video>
         )}
-        
+
         {/* Dynamic Light/Pink Overlay for readability */}
-        <div className={`absolute inset-0 bg-white/20 transition-opacity duration-1000 ${data.heroVideoUrl && !showText ? 'opacity-0' : 'opacity-100'}`} />
+        <div 
+          className={`absolute inset-0 bg-white/20 transition-opacity duration-1000 ${
+            data.heroVideoUrl && !showText && isVideoReady ? 'opacity-0' : 'opacity-100'
+          }`} 
+        />
 
         <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-blush-main to-transparent pointer-events-none z-10" />
       </div>
@@ -70,7 +123,7 @@ export function Hero({ data, shouldPlayVideo = true, onVideoEnd }: HeroProps) {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: showText ? 1 : 0, y: showText ? 0 : 10 }}
-            transition={{ duration: 1, delay: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.1 }}
             className="flex flex-col items-center w-full"
           >
             <Heart className="w-5 h-5 text-[#A91F3D] fill-[#A91F3D] mb-4 opacity-90" />
@@ -88,7 +141,7 @@ export function Hero({ data, shouldPlayVideo = true, onVideoEnd }: HeroProps) {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: showText ? 1 : 0, scale: showText ? 1 : 0.95 }}
-            transition={{ duration: 1.5, delay: 0.5 }}
+            transition={{ duration: 1.2, delay: 0.3 }}
             className="flex flex-col items-center justify-center w-full"
           >
             <h1 className="font-script text-5xl sm:text-6xl text-[#8F1736] drop-shadow-sm leading-none whitespace-nowrap">
@@ -117,7 +170,7 @@ export function Hero({ data, shouldPlayVideo = true, onVideoEnd }: HeroProps) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: showText ? 0.8 : 0 }}
-          transition={{ duration: 1, delay: 1.5 }}
+          transition={{ duration: 0.8, delay: 1 }}
           className="mt-6 flex flex-col items-center"
         >
           <span className="text-[10px] font-serif text-[#8F1736] uppercase tracking-[0.3em] mb-2 font-bold">Scroll</span>
